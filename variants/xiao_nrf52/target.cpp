@@ -3,6 +3,10 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/PowerManager.h>
 
+#ifdef DISPLAY_CLASS
+  DISPLAY_CLASS display;
+#endif
+
 XiaoNrf52Board board;
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);

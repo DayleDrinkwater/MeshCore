@@ -47,6 +47,7 @@ struct NodePrefs { // persisted to file
   uint32_t gps_interval; // in seconds
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
+  float adc_multiplier;
   // BQ25628E charger settings (added at end for backward compatibility)
   uint16_t bq_chg_vreg_mv;          // charge voltage (mV), 3500-4800
   uint16_t bq_chg_current_ma;       // fast charge current (mA), 40-2000
