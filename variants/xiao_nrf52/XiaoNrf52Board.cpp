@@ -5,6 +5,7 @@
 #include <bluefruit.h>
 
 #include "XiaoNrf52Board.h"
+#include <helpers/PowerManager.h>
 
 static BLEDfu bledfu;
 
@@ -38,6 +39,9 @@ void XiaoNrf52Board::begin() {
 #endif
 
   Wire.begin();
+
+  // Initialize PowerManager for BQ25628E battery management IC
+  PowerManager::begin(Wire);
 
 #ifdef P_LORA_TX_LED
   pinMode(P_LORA_TX_LED, OUTPUT);
