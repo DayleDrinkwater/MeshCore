@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/PowerManager.h>
 
 #include "MyMesh.h"
 
@@ -113,6 +114,7 @@ void loop() {
 
   the_mesh.loop();
   sensors.loop();
+  PowerManager::loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

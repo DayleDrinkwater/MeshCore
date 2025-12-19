@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <helpers/PowerManager.h>
 #include <algorithm>
 
 /* ------------------------------ Config -------------------------------- */
@@ -168,12 +169,12 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     uint8_t perm_mask = ~(payload[1]); // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
 
     telemetry.reset();
-    telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
     // query other sensors -- target specific
     if ((sender->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
       perm_mask = 0x00;  // just base telemetry allowed
     }
     sensors.querySensors(perm_mask, telemetry);
+    PowerManager::addTelemetry(telemetry);
 
     uint8_t tlen = telemetry.getSize();
     memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
@@ -720,6 +721,9 @@ void MyMesh::begin(FILESYSTEM *fs) {
   acl.load(_fs);
   // TODO: key_store.begin();
   region_map.load(_fs);
+
+  // Apply BQ25628E settings from prefs and enable watchdog verification
+  PowerManager::loadAndApplyBQSettings(&_prefs);
 
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {

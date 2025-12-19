@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "PowerManager.h"
 #include <RTClib.h>
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -71,6 +72,18 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     // 166
+    
+    // Read BQ25628E settings (added at end for backward compatibility)
+    file.read((uint8_t *)&_prefs->bq_chg_vreg_mv, sizeof(_prefs->bq_chg_vreg_mv));               // 166
+    file.read((uint8_t *)&_prefs->bq_chg_current_ma, sizeof(_prefs->bq_chg_current_ma));         // 168
+    file.read((uint8_t *)&_prefs->bq_prechg_current_ma, sizeof(_prefs->bq_prechg_current_ma));   // 170
+    file.read((uint8_t *)&_prefs->bq_term_current_ma, sizeof(_prefs->bq_term_current_ma));       // 172
+    file.read((uint8_t *)&_prefs->bq_rechg_threshold_mv, sizeof(_prefs->bq_rechg_threshold_mv)); // 174
+    file.read((uint8_t *)&_prefs->bq_input_voltage_mv, sizeof(_prefs->bq_input_voltage_mv));     // 176
+    file.read((uint8_t *)&_prefs->bq_input_current_ma, sizeof(_prefs->bq_input_current_ma));     // 178
+    file.read((uint8_t *)&_prefs->bq_min_sys_voltage_mv, sizeof(_prefs->bq_min_sys_voltage_mv)); // 180
+    file.read((uint8_t *)&_prefs->bq_vbat_uvlo, sizeof(_prefs->bq_vbat_uvlo));                   // 182
+    // 183
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -93,6 +106,27 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    // Sanitise BQ25628E pref values
+    // Note: 0 means "not configured by user" - leave at 0, don't force into valid range
+    // Only constrain non-zero values to valid ranges
+    if (_prefs->bq_chg_vreg_mv != 0)
+      _prefs->bq_chg_vreg_mv = constrain(_prefs->bq_chg_vreg_mv, 3500, 4800);
+    if (_prefs->bq_chg_current_ma != 0)
+      _prefs->bq_chg_current_ma = constrain(_prefs->bq_chg_current_ma, 40, 2000);
+    if (_prefs->bq_prechg_current_ma != 0)
+      _prefs->bq_prechg_current_ma = constrain(_prefs->bq_prechg_current_ma, 40, 2000);
+    if (_prefs->bq_term_current_ma != 0)
+      _prefs->bq_term_current_ma = constrain(_prefs->bq_term_current_ma, 40, 2000);
+    if (_prefs->bq_rechg_threshold_mv != 0)
+      _prefs->bq_rechg_threshold_mv = (_prefs->bq_rechg_threshold_mv == 200) ? 200 : 100;
+    if (_prefs->bq_input_voltage_mv != 0)
+      _prefs->bq_input_voltage_mv = constrain(_prefs->bq_input_voltage_mv, 3800, 16800);
+    if (_prefs->bq_input_current_ma != 0)
+      _prefs->bq_input_current_ma = constrain(_prefs->bq_input_current_ma, 100, 3200);
+    if (_prefs->bq_min_sys_voltage_mv != 0)
+      _prefs->bq_min_sys_voltage_mv = constrain(_prefs->bq_min_sys_voltage_mv, 2560, 3840);
+    _prefs->bq_vbat_uvlo = constrain(_prefs->bq_vbat_uvlo, 0, 1);
 
     file.close();
   }
@@ -149,6 +183,18 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     // 166
+    
+    // Write BQ25628E settings
+    file.write((uint8_t *)&_prefs->bq_chg_vreg_mv, sizeof(_prefs->bq_chg_vreg_mv));               // 166
+    file.write((uint8_t *)&_prefs->bq_chg_current_ma, sizeof(_prefs->bq_chg_current_ma));         // 168
+    file.write((uint8_t *)&_prefs->bq_prechg_current_ma, sizeof(_prefs->bq_prechg_current_ma));   // 170
+    file.write((uint8_t *)&_prefs->bq_term_current_ma, sizeof(_prefs->bq_term_current_ma));       // 172
+    file.write((uint8_t *)&_prefs->bq_rechg_threshold_mv, sizeof(_prefs->bq_rechg_threshold_mv)); // 174
+    file.write((uint8_t *)&_prefs->bq_input_voltage_mv, sizeof(_prefs->bq_input_voltage_mv));     // 176
+    file.write((uint8_t *)&_prefs->bq_input_current_ma, sizeof(_prefs->bq_input_current_ma));     // 178
+    file.write((uint8_t *)&_prefs->bq_min_sys_voltage_mv, sizeof(_prefs->bq_min_sys_voltage_mv)); // 180
+    file.write((uint8_t *)&_prefs->bq_vbat_uvlo, sizeof(_prefs->bq_vbat_uvlo));                   // 182
+    // 183
 
     file.close();
   }
@@ -331,6 +377,57 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "bridge.secret", 13) == 0) {
         sprintf(reply, "> %s", _prefs->bridge_secret);
 #endif
+      } else if (memcmp(config, "bq.status", 9) == 0) {
+        char status[128];
+        PowerManager::getChargeStatus(status, sizeof(status));
+        sprintf(reply, "> %s", status);
+      } else if (memcmp(config, "bq.diag", 7) == 0) {
+        char diag[256];
+        PowerManager::getDiagnostics(diag, sizeof(diag));
+        sprintf(reply, "> %s", diag);
+      } else if (memcmp(config, "bq.chg.mv", 9) == 0) {
+        if (_prefs->bq_chg_vreg_mv == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_chg_vreg_mv);
+      } else if (memcmp(config, "bq.chg.ma", 9) == 0) {
+        if (_prefs->bq_chg_current_ma == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_chg_current_ma);
+      } else if (memcmp(config, "bq.prechg.ma", 12) == 0) {
+        if (_prefs->bq_prechg_current_ma == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_prechg_current_ma);
+      } else if (memcmp(config, "bq.term.ma", 10) == 0) {
+        if (_prefs->bq_term_current_ma == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_term_current_ma);
+      } else if (memcmp(config, "bq.rechg.thr", 12) == 0) {
+        if (_prefs->bq_rechg_threshold_mv == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_rechg_threshold_mv);
+      } else if (memcmp(config, "bq.input.mv", 11) == 0) {
+        if (_prefs->bq_input_voltage_mv == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_input_voltage_mv);
+      } else if (memcmp(config, "bq.input.ma", 11) == 0) {
+        if (_prefs->bq_input_current_ma == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_input_current_ma);
+      } else if (memcmp(config, "bq.vsysmin.mv", 13) == 0) {
+        if (_prefs->bq_min_sys_voltage_mv == 0)
+          strcpy(reply, "> (not set, using chip default)");
+        else
+          sprintf(reply, "> %d", (uint32_t)_prefs->bq_min_sys_voltage_mv);
+      } else if (memcmp(config, "bq.uvlo", 7) == 0) {
+        sprintf(reply, "> %d (%s)", (uint32_t)_prefs->bq_vbat_uvlo,
+                _prefs->bq_vbat_uvlo ? "1.8V LiFePO4" : "2.2V Li-ion");
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -523,6 +620,132 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
 #endif
+      } else if (memcmp(config, "bq.chg.mv ", 10) == 0) {
+        uint16_t mv = atoi(&config[10]);
+        if (mv >= 3500 && mv <= 4800) {
+          _prefs->bq_chg_vreg_mv = mv;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 3500-4800 mV");
+        }
+      } else if (memcmp(config, "bq.chg.ma ", 10) == 0) {
+        uint16_t ma = atoi(&config[10]);
+        if (ma >= 40 && ma <= 2000) {
+          _prefs->bq_chg_current_ma = ma;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 40-2000 mA");
+        }
+      } else if (memcmp(config, "bq.prechg.ma ", 13) == 0) {
+        uint16_t ma = atoi(&config[13]);
+        if (ma >= 40 && ma <= 2000) {
+          _prefs->bq_prechg_current_ma = ma;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 40-2000 mA");
+        }
+      } else if (memcmp(config, "bq.term.ma ", 11) == 0) {
+        uint16_t ma = atoi(&config[11]);
+        if (ma >= 40 && ma <= 2000) {
+          _prefs->bq_term_current_ma = ma;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 40-2000 mA");
+        }
+      } else if (memcmp(config, "bq.rechg.thr ", 13) == 0) {
+        uint16_t mv = atoi(&config[13]);
+        if (mv == 100 || mv == 200) {
+          _prefs->bq_rechg_threshold_mv = mv;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: must be 100 or 200 mV");
+        }
+      } else if (memcmp(config, "bq.input.mv ", 12) == 0) {
+        uint16_t mv = atoi(&config[12]);
+        if (mv >= 3800 && mv <= 16800) {
+          _prefs->bq_input_voltage_mv = mv;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 3800-16800 mV");
+        }
+      } else if (memcmp(config, "bq.input.ma ", 12) == 0) {
+        uint16_t ma = atoi(&config[12]);
+        if (ma >= 100 && ma <= 3200) {
+          _prefs->bq_input_current_ma = ma;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 100-3200 mA");
+        }
+      } else if (memcmp(config, "bq.vsysmin.mv ", 14) == 0) {
+        uint16_t mv = atoi(&config[14]);
+        if (mv >= 2560 && mv <= 3840) {
+          _prefs->bq_min_sys_voltage_mv = mv;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: range 2560-3840 mV");
+        }
+      } else if (memcmp(config, "bq.uvlo ", 8) == 0) {
+        uint8_t uvlo = atoi(&config[8]);
+        if (uvlo == 0 || uvlo == 1) {
+          _prefs->bq_vbat_uvlo = uvlo;
+          PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
+                                     _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
+                                     _prefs->bq_rechg_threshold_mv, _prefs->bq_input_voltage_mv,
+                                     _prefs->bq_input_current_ma, _prefs->bq_min_sys_voltage_mv,
+                                     _prefs->bq_vbat_uvlo);
+          savePrefs();
+          sprintf(reply, "OK - %s", uvlo ? "1.8V LiFePO4" : "2.2V Li-ion");
+        } else {
+          strcpy(reply, "Error: must be 0 (Li-ion) or 1 (LiFePO4)");
+        }
       } else {
         sprintf(reply, "unknown config: %s", config);
       }

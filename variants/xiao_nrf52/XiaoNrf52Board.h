@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/PowerManager.h>
 
 #ifdef XIAO_NRF52
 
@@ -23,6 +24,15 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override {
+    // Use BQ25628E voltage reading if PowerManager is initialized
+    if (PowerManager::isBQInitialized()) {
+      uint16_t voltage = PowerManager::getBatteryVoltageMilliVolts();
+      if (voltage > 0) {
+        return voltage;
+      }
+    }
+
+    // Fallback to direct ADC reading if BQ25628E is not available
     // Please read befor going further ;)
     // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
 
@@ -43,6 +53,11 @@ public:
   }
 
   void reboot() override {
+    // Use BQ25628E BATFET power reset for a full power cycle
+    // This cuts power to the MCU via BATFET, then re-enables after ~100ms
+    // Falls back to standard MCU reset if BQ is not available
+    PowerManager::systemPowerReset();
+    // systemPowerReset() doesn't return, but just in case:
     NVIC_SystemReset();
   }
 

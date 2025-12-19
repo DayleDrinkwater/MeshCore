@@ -47,6 +47,16 @@ struct NodePrefs { // persisted to file
   uint32_t gps_interval; // in seconds
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
+  // BQ25628E charger settings (added at end for backward compatibility)
+  uint16_t bq_chg_vreg_mv;          // charge voltage (mV), 3500-4800
+  uint16_t bq_chg_current_ma;       // fast charge current (mA), 40-2000
+  uint16_t bq_prechg_current_ma;    // pre-charge current (mA)
+  uint16_t bq_term_current_ma;      // termination current (mA)
+  uint16_t bq_rechg_threshold_mv;   // recharge threshold (mV), 100 or 200
+  uint16_t bq_input_voltage_mv;     // VINDPM input voltage limit (mV), 3800-16800
+  uint16_t bq_input_current_ma;     // IINDPM input current limit (mA), 100-3200
+  uint16_t bq_min_sys_voltage_mv;   // VSYSMIN minimal system voltage (mV), 2560-3840
+  uint8_t bq_vbat_uvlo;             // UVLO: 0=2.2V (Li-ion), 1=1.8V (LiFePO4)
 };
 
 class CommonCLICallbacks {

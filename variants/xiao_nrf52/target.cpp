@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/PowerManager.h>
 
 XiaoNrf52Board board;
 
@@ -12,6 +13,7 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 EnvironmentSensorManager sensors;
+PowerManager power_manager;
 
 bool radio_init() {
   rtc_clock.begin(Wire);
