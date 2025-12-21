@@ -681,7 +681,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
       } else if (memcmp(config, "bq.term.ma ", 11) == 0) {
         uint16_t ma = atoi(&config[11]);
-        if (ma >= 40 && ma <= 2000) {
+        if (ma >= 5 && ma <= 310) {
           _prefs->bq_term_current_ma = ma;
           PowerManager::configureBQ(_prefs->bq_chg_vreg_mv, _prefs->bq_chg_current_ma,
                                      _prefs->bq_prechg_current_ma, _prefs->bq_term_current_ma,
@@ -691,7 +691,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           savePrefs();
           strcpy(reply, "OK");
         } else {
-          strcpy(reply, "Error: range 40-2000 mA");
+          strcpy(reply, "Error: range 5-310 mA");
         }
       } else if (memcmp(config, "bq.rechg.thr ", 13) == 0) {
         uint16_t mv = atoi(&config[13]);
