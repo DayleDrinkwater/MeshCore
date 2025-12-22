@@ -44,7 +44,7 @@
 #define BQ28_REG_CHARGER_CTRL3  0x19  // VBAT_UVLO, peak discharge
 
 // Status registers
-#define BQ28_REG_STATUS0        0x1D  // Regulation status, timers
+#define BQ28_REG_STATUS0        0x1D  // ADC done, regulation status, timers
 #define BQ28_REG_STATUS1        0x1E  // VBUS status, charge status
 #define BQ28_REG_FAULT0         0x1F  // Fault flags
 
@@ -370,13 +370,29 @@ static bool bq_enable_adc() {
 }
 
 static bool bq_trigger_adc() {
-
-  //One-shot ADC
-
+  // One-shot ADC conversion
+  // Bit 7: ADC_EN = 1 (enable ADC)
+  // Bit 6: ADC_RATE = 1 (one-shot mode)
+  
   if (!bq_write8(BQ28_REG_ADC_CTRL, 0xC0)) return false;  // 0b11000000
   
-  delay(150);  // Wait for all channel conversions (12-bit takes ~5ms per channel)
-  return true;
+  // Wait for ADC_DONE_STAT bit (bit 6) in STATUS0 register to indicate conversion complete
+  // REG0x1D bit 6: ADC_DONE_STAT - 0=not complete, 1=complete (one-shot mode only)
+  // Timeout after ~400ms
+  uint32_t timeout = millis() + 400;
+  uint8_t status0;
+  
+  while (millis() < timeout) {
+    if (!bq_read8(BQ28_REG_STATUS0, status0)) return false;
+    if (status0 & 0x40) {  // Bit 6 = ADC_DONE_STAT
+      // Conversion complete
+      return true;
+    }
+    delay(5);  // Small delay between polls
+  }
+  
+  // Timeout - conversion did not complete in expected time
+  return false;
 }
 
 // =============================================================================
